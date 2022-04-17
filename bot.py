@@ -1,36 +1,49 @@
+import requests
 from flask import Flask, request
-from telegram import Bot, Update
-from telegram.ext import Dispatcher, CallbackContext, CommandHandler
 
 import config
 import leetcode
 
+base_url = f'https://api.telegram.org/bot{config.BOT_TOKEN}'
 
-def start_command(update: Update, context: CallbackContext) -> None:
+
+def _send_telegram_request(method, payload=None):
+    url = f'{base_url}/{method}'
+    requests.post(url=url, json=payload)
+
+
+def reply_to_message(update, text):
+    message = update.get('message', {})
+    chat_id = message.get('chat', {}).get('id', None)
+    message_id = message.get('message_id', None)
+    payload = {
+        'chat_id': chat_id,
+        'text': text,
+        'reply_to_message_id': message_id,
+    }
+    _send_telegram_request(method='sendMessage', payload=payload)
+
+
+def start_command(update) -> None:
     """Send a message when the command /start is issued."""
-    user = update.effective_user
-    update.message.reply_markdown_v2(
-        fr'Hi {user.mention_markdown_v2()}\!',
-    )
+    reply_to_message(update, 'Hello!')
 
 
-def help_command(update: Update, context: CallbackContext) -> None:
+def help_command(update) -> None:
     """Send a message when the command /help is issued."""
-    update.message.reply_text('Help!')
+    reply_to_message(update, 'Help!')
 
 
-def daily_command(update: Update, context: CallbackContext) -> None:
+def daily_command(update) -> None:
     """Send a message when the command /daily is issued."""
-    update.message.reply_text(leetcode.get_daily())
+    reply_to_message(update, leetcode.get_daily())
 
 
-bot = Bot(config.BOT_TOKEN)
-dispatcher = Dispatcher(bot=bot, update_queue=None, workers=0)
-
-# On different commands - answer in Telegram
-dispatcher.add_handler(CommandHandler("start", start_command))
-dispatcher.add_handler(CommandHandler("help", help_command))
-dispatcher.add_handler(CommandHandler("daily", daily_command))
+handlers = {
+    '/daily': daily_command,
+    '/help': help_command,
+    '/start': start_command,
+}
 
 app = Flask(__name__)
 
@@ -42,9 +55,10 @@ def status():
 
 @app.route(config.UPDATE_ENDPOINT, methods=['POST'])
 def process_leetcode_bot_update_action():
-    request_body = request.get_json()
-    update = Update.de_json(request_body, bot)
-    dispatcher.process_update(update)
+    update = request.get_json()
+    text = update.get('message', {}).get('text', None)
+    if text in handlers:
+        handlers[text](update)
     return '"OK"'
 
 
