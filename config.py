@@ -1,0 +1,3 @@
+BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE'
+HEALTH_CHECK_MESSAGE = '"App is up and running!"'
+UPDATE_ENDPOINT = '/update'
